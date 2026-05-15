@@ -54,6 +54,7 @@ function Locations() {
           selectedId={null}
           onSelect={() => {}}
           extraField={{ key: "ward_number", label: "Ward #" }}
+          bulkAdd={panchayathId ? { parentId: panchayathId } : undefined}
         />
       </div>
     </div>
