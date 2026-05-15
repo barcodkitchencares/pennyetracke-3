@@ -54,6 +54,7 @@ function Locations() {
           selectedId={null}
           onSelect={() => {}}
           extraField={{ key: "ward_number", label: "Ward #" }}
+          bulkAdd={panchayathId ? { parentId: panchayathId } : undefined}
         />
       </div>
     </div>
@@ -61,7 +62,7 @@ function Locations() {
 }
 
 function Column({
-  title, table, parentField, parentId, selectedId, onSelect, extraField,
+  title, table, parentField, parentId, selectedId, onSelect, extraField, bulkAdd,
 }: {
   title: string;
   table: "states" | "districts" | "panchayaths" | "wards";
@@ -70,6 +71,7 @@ function Column({
   selectedId: string | null;
   onSelect: (id: string) => void;
   extraField?: { key: string; label: string; type?: string };
+  bulkAdd?: { parentId: string };
 }) {
   const qc = useQueryClient();
   const [name, setName] = useState("");
@@ -170,6 +172,7 @@ function Column({
             </Button>
           </div>
         )}
+        {bulkAdd && <BulkAddWards panchayathId={bulkAdd.parentId} existingCount={data.length} />}
         <div className="max-h-80 space-y-1 overflow-y-auto">
           {!enabled && <p className="text-xs text-muted-foreground">Select a {parentField?.replace("_id", "")} first</p>}
           {data.map((row: any) => {
@@ -223,5 +226,39 @@ function Column({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function BulkAddWards({ panchayathId, existingCount }: { panchayathId: string; existingCount: number }) {
+  const qc = useQueryClient();
+  const [count, setCount] = useState("");
+  const bulk = useMutation({
+    mutationFn: async () => {
+      const n = Math.max(1, Math.min(500, parseInt(count, 10) || 0));
+      const wards = Array.from({ length: n }, (_, i) => ({
+        panchayath_id: panchayathId,
+        name: `Ward ${existingCount + i + 1}`,
+        ward_number: String(existingCount + i + 1),
+      }));
+      const { error } = await supabase.from("wards").insert(wards);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["wards", panchayathId] });
+      setCount("");
+      toast.success("Wards added");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+  return (
+    <div className="space-y-2 rounded-md border border-dashed p-2">
+      <p className="text-xs text-muted-foreground">Bulk add wards</p>
+      <div className="flex gap-1">
+        <Input type="number" min={1} max={500} placeholder="How many?" value={count} onChange={(e) => setCount(e.target.value)} className="h-8" />
+        <Button size="sm" className="h-8" onClick={() => bulk.mutate()} disabled={!count || bulk.isPending}>
+          <Plus className="h-3.5 w-3.5" /> Add
+        </Button>
+      </div>
+    </div>
   );
 }
