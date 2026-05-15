@@ -1,17 +1,17 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, Trash2 } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Plus, Trash2, Pencil, ChevronDown, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/admin/staff")({ component: StaffPage });
@@ -20,22 +20,25 @@ type Staff = {
   id: string;
   full_name: string;
   phone: string;
+  alt_phone: string | null;
   email: string | null;
   status: string;
   delivery_staff_panchayaths: { panchayath_id: string; panchayaths: { name: string } | null }[];
-  delivery_staff_wards: { ward_id: string; wards: { name: string; ward_number: string | null } | null }[];
+  delivery_staff_wards: { ward_id: string; wards: { name: string; ward_number: string | null; panchayath_id: string } | null }[];
 };
 
 function StaffPage() {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<Staff | null>(null);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   const { data: staff = [], isLoading } = useQuery({
     queryKey: ["staff"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("delivery_staff")
-        .select("*, delivery_staff_panchayaths(panchayath_id, panchayaths(name)), delivery_staff_wards(ward_id, wards(name, ward_number))")
+        .select("*, delivery_staff_panchayaths(panchayath_id, panchayaths(name)), delivery_staff_wards(ward_id, wards(name, ward_number, panchayath_id))")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as Staff[];
@@ -81,122 +84,201 @@ function StaffPage() {
           <DialogTrigger asChild>
             <Button><Plus className="h-4 w-4" /> Add Staff</Button>
           </DialogTrigger>
-          <AddStaffDialog panchayaths={panchayaths as any} wards={wards as any} onClose={() => setOpen(false)} />
+          {open && (
+            <StaffDialog
+              mode="create"
+              panchayaths={panchayaths as any}
+              wards={wards as any}
+              onClose={() => setOpen(false)}
+            />
+          )}
+        </Dialog>
+
+        <Dialog open={!!editing} onOpenChange={(o) => !o && setEditing(null)}>
+          {editing && (
+            <StaffDialog
+              mode="edit"
+              staff={editing}
+              panchayaths={panchayaths as any}
+              wards={wards as any}
+              onClose={() => setEditing(null)}
+            />
+          )}
         </Dialog>
       </div>
 
-      <Card className="mt-6">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Phone</TableHead>
-              <TableHead>Allocated Panchayaths</TableHead>
-              <TableHead>Allocated Wards</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead className="w-12" />
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading && <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">Loading…</TableCell></TableRow>}
-            {!isLoading && staff.length === 0 && (
-              <TableRow><TableCell colSpan={6} className="text-center text-muted-foreground">No staff yet. Add your first delivery person.</TableCell></TableRow>
-            )}
-            {staff.map((s) => (
-              <TableRow key={s.id}>
-                <TableCell className="font-medium">{s.full_name}</TableCell>
-                <TableCell>{s.phone}</TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-xs">
-                    {s.delivery_staff_panchayaths.length === 0 && <span className="text-muted-foreground">—</span>}
-                    {s.delivery_staff_panchayaths.map((p) => (
-                      <Badge key={p.panchayath_id} variant="outline">{p.panchayaths?.name ?? "—"}</Badge>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell>
-                  <div className="flex flex-wrap gap-1 max-w-xs">
-                    {s.delivery_staff_wards.length === 0 && <span className="text-muted-foreground">—</span>}
-                    {s.delivery_staff_wards.map((w) => (
-                      <Badge key={w.ward_id} variant="secondary">
-                        {w.wards?.ward_number ? `Ward ${w.wards.ward_number}` : w.wards?.name ?? "—"}
-                      </Badge>
-                    ))}
-                  </div>
-                </TableCell>
-                <TableCell><Badge variant={s.status === "active" ? "default" : "secondary"}>{s.status}</Badge></TableCell>
-                <TableCell>
-                  <Button size="icon" variant="ghost" onClick={() => del.mutate(s.id)}>
-                    <Trash2 className="h-4 w-4" />
+      <Card className="mt-6 divide-y">
+        {isLoading && <div className="p-6 text-center text-muted-foreground">Loading…</div>}
+        {!isLoading && staff.length === 0 && (
+          <div className="p-6 text-center text-muted-foreground">No staff yet. Add your first delivery person.</div>
+        )}
+        {staff.map((s) => {
+          const isOpen = !!expanded[s.id];
+          return (
+            <Collapsible key={s.id} open={isOpen} onOpenChange={(o) => setExpanded((e) => ({ ...e, [s.id]: o }))}>
+              <div className="flex items-center gap-2 p-3">
+                <CollapsibleTrigger asChild>
+                  <Button size="icon" variant="ghost" className="shrink-0">
+                    {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                   </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+                </CollapsibleTrigger>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium truncate">{s.full_name}</div>
+                  <div className="text-xs text-muted-foreground">{s.phone}{s.alt_phone ? ` · ${s.alt_phone}` : ""}</div>
+                </div>
+                <Badge variant={s.status === "active" ? "default" : "secondary"}>{s.status}</Badge>
+                <Button size="icon" variant="ghost" onClick={() => setEditing(s)}>
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button size="icon" variant="ghost" onClick={() => { if (confirm("Remove this staff?")) del.mutate(s.id); }}>
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </div>
+              <CollapsibleContent>
+                <div className="px-12 pb-4 space-y-3 text-sm">
+                  {s.email && <div><span className="text-muted-foreground">Email: </span>{s.email}</div>}
+                  <div>
+                    <div className="text-muted-foreground mb-1">Allocated Panchayaths</div>
+                    <div className="flex flex-wrap gap-1">
+                      {s.delivery_staff_panchayaths.length === 0 && <span className="text-muted-foreground">—</span>}
+                      {s.delivery_staff_panchayaths.map((p) => (
+                        <Badge key={p.panchayath_id} variant="outline">{p.panchayaths?.name ?? "—"}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground mb-1">Allocated Wards</div>
+                    <div className="flex flex-wrap gap-1">
+                      {s.delivery_staff_wards.length === 0 && <span className="text-muted-foreground">—</span>}
+                      {s.delivery_staff_wards.map((w) => (
+                        <Badge key={w.ward_id} variant="secondary">
+                          {w.wards?.ward_number ? `Ward ${w.wards.ward_number}` : w.wards?.name ?? "—"}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
+          );
+        })}
       </Card>
     </div>
   );
 }
 
-function AddStaffDialog({ panchayaths, wards, onClose }: { panchayaths: any[]; wards: any[]; onClose: () => void }) {
+function StaffDialog({
+  mode,
+  staff,
+  panchayaths,
+  wards,
+  onClose,
+}: {
+  mode: "create" | "edit";
+  staff?: Staff;
+  panchayaths: any[];
+  wards: any[];
+  onClose: () => void;
+}) {
   const qc = useQueryClient();
-  const [form, setForm] = useState({ full_name: "", phone: "", alt_phone: "", email: "", status: "active" });
-  const [selectedPanchayaths, setSelectedPanchayaths] = useState<string[]>([]);
-  const [selectedWards, setSelectedWards] = useState<string[]>([]);
+  const [form, setForm] = useState({
+    full_name: staff?.full_name ?? "",
+    phone: staff?.phone ?? "",
+    alt_phone: staff?.alt_phone ?? "",
+    email: staff?.email ?? "",
+    status: staff?.status ?? "active",
+  });
+  const [selectedPanchayaths, setSelectedPanchayaths] = useState<string[]>(
+    staff?.delivery_staff_panchayaths.map((p) => p.panchayath_id) ?? [],
+  );
+  const [selectedWards, setSelectedWards] = useState<string[]>(
+    staff?.delivery_staff_wards.map((w) => w.ward_id) ?? [],
+  );
 
   const availableWards = useMemo(
     () => wards.filter((w) => selectedPanchayaths.includes(w.panchayath_id)),
     [wards, selectedPanchayaths],
   );
 
+  // Drop wards whose panchayath is no longer selected
+  useEffect(() => {
+    setSelectedWards((prev) => prev.filter((wid) => {
+      const w = wards.find((x) => x.id === wid);
+      return w && selectedPanchayaths.includes(w.panchayath_id);
+    }));
+  }, [selectedPanchayaths, wards]);
+
   const togglePanchayath = (id: string) => {
-    setSelectedPanchayaths((prev) => {
-      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id];
-      // drop wards whose panchayath is no longer selected
-      setSelectedWards((w) => w.filter((wid) => {
-        const ward = wards.find((x) => x.id === wid);
-        return ward && next.includes(ward.panchayath_id);
-      }));
-      return next;
-    });
+    setSelectedPanchayaths((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
 
   const toggleWard = (id: string) => {
     setSelectedWards((prev) => prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]);
   };
 
-  const create = useMutation({
+  const allWardsSelected = availableWards.length > 0 && availableWards.every((w) => selectedWards.includes(w.id));
+  const toggleAllWards = () => {
+    if (allWardsSelected) {
+      const ids = new Set(availableWards.map((w) => w.id));
+      setSelectedWards((prev) => prev.filter((id) => !ids.has(id)));
+    } else {
+      const ids = new Set(selectedWards);
+      availableWards.forEach((w) => ids.add(w.id));
+      setSelectedWards(Array.from(ids));
+    }
+  };
+
+  const save = useMutation({
     mutationFn: async () => {
-      const { data: inserted, error } = await supabase
-        .from("delivery_staff")
-        .insert({
-          full_name: form.full_name,
-          phone: form.phone,
-          alt_phone: form.alt_phone || null,
-          email: form.email || null,
-          status: form.status,
-        })
-        .select("id")
-        .single();
-      if (error) throw error;
+      let staffId = staff?.id;
+      if (mode === "create") {
+        const { data: inserted, error } = await supabase
+          .from("delivery_staff")
+          .insert({
+            full_name: form.full_name,
+            phone: form.phone,
+            alt_phone: form.alt_phone || null,
+            email: form.email || null,
+            status: form.status,
+          })
+          .select("id")
+          .single();
+        if (error) throw error;
+        staffId = inserted.id;
+      } else {
+        const { error } = await supabase
+          .from("delivery_staff")
+          .update({
+            full_name: form.full_name,
+            phone: form.phone,
+            alt_phone: form.alt_phone || null,
+            email: form.email || null,
+            status: form.status,
+          })
+          .eq("id", staffId!);
+        if (error) throw error;
+
+        // Replace allocations
+        await supabase.from("delivery_staff_panchayaths").delete().eq("staff_id", staffId!);
+        await supabase.from("delivery_staff_wards").delete().eq("staff_id", staffId!);
+      }
 
       if (selectedPanchayaths.length > 0) {
         const { error: pErr } = await supabase
           .from("delivery_staff_panchayaths")
-          .insert(selectedPanchayaths.map((pid) => ({ staff_id: inserted.id, panchayath_id: pid })));
+          .insert(selectedPanchayaths.map((pid) => ({ staff_id: staffId!, panchayath_id: pid })));
         if (pErr) throw pErr;
       }
       if (selectedWards.length > 0) {
         const { error: wErr } = await supabase
           .from("delivery_staff_wards")
-          .insert(selectedWards.map((wid) => ({ staff_id: inserted.id, ward_id: wid })));
+          .insert(selectedWards.map((wid) => ({ staff_id: staffId!, ward_id: wid })));
         if (wErr) throw wErr;
       }
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["staff"] });
-      toast.success("Staff added");
+      toast.success(mode === "create" ? "Staff added" : "Staff updated");
       onClose();
     },
     onError: (e: any) => toast.error(e.message),
@@ -204,7 +286,9 @@ function AddStaffDialog({ panchayaths, wards, onClose }: { panchayaths: any[]; w
 
   return (
     <DialogContent className="max-w-2xl">
-      <DialogHeader><DialogTitle>Add delivery staff</DialogTitle></DialogHeader>
+      <DialogHeader>
+        <DialogTitle>{mode === "create" ? "Add delivery staff" : "Edit delivery staff"}</DialogTitle>
+      </DialogHeader>
       <div className="grid gap-3">
         <Field label="Full name" value={form.full_name} onChange={(v) => setForm({ ...form, full_name: v })} />
         <Field label="Phone" value={form.phone} onChange={(v) => setForm({ ...form, phone: v })} />
@@ -229,7 +313,18 @@ function AddStaffDialog({ panchayaths, wards, onClose }: { panchayaths: any[]; w
           </div>
 
           <div className="space-y-1.5">
-            <Label>Allocated Wards</Label>
+            <div className="flex items-center justify-between">
+              <Label>Allocated Wards</Label>
+              {availableWards.length > 0 && (
+                <button
+                  type="button"
+                  className="text-xs text-primary hover:underline"
+                  onClick={toggleAllWards}
+                >
+                  {allWardsSelected ? "Clear all" : "Select all"}
+                </button>
+              )}
+            </div>
             <ScrollArea className="h-48 rounded-md border p-2">
               {selectedPanchayaths.length === 0 && (
                 <p className="text-sm text-muted-foreground">Select panchayaths first.</p>
@@ -253,10 +348,10 @@ function AddStaffDialog({ panchayaths, wards, onClose }: { panchayaths: any[]; w
       <DialogFooter>
         <Button variant="outline" onClick={onClose}>Cancel</Button>
         <Button
-          onClick={() => create.mutate()}
-          disabled={!form.full_name || !form.phone || selectedPanchayaths.length === 0 || create.isPending}
+          onClick={() => save.mutate()}
+          disabled={!form.full_name || !form.phone || selectedPanchayaths.length === 0 || save.isPending}
         >
-          {create.isPending ? "Saving…" : "Save"}
+          {save.isPending ? "Saving…" : mode === "create" ? "Save" : "Update"}
         </Button>
       </DialogFooter>
     </DialogContent>
