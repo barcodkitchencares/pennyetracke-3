@@ -18,6 +18,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminStaffRouteImport } from './routes/admin.staff'
+import { Route as AdminSettingsRouteImport } from './routes/admin.settings'
 import { Route as AdminLocationsRouteImport } from './routes/admin.locations'
 import { Route as AuthenticatedMarkingIndexRouteImport } from './routes/_authenticated.marking.index'
 import { Route as AuthenticatedMarkingWardRouteImport } from './routes/_authenticated.marking.ward'
@@ -67,6 +68,11 @@ const AdminStaffRoute = AdminStaffRouteImport.update({
   path: '/staff',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminSettingsRoute = AdminSettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminLocationsRoute = AdminLocationsRouteImport.update({
   id: '/locations',
   path: '/locations',
@@ -98,6 +104,7 @@ export interface FileRoutesByFullPath {
   '/delivery-partners': typeof DeliveryPartnersRoute
   '/landing': typeof LandingRoute
   '/admin/locations': typeof AdminLocationsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
@@ -111,6 +118,7 @@ export interface FileRoutesByTo {
   '/delivery-partners': typeof DeliveryPartnersRoute
   '/landing': typeof LandingRoute
   '/admin/locations': typeof AdminLocationsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin': typeof AdminIndexRoute
@@ -127,6 +135,7 @@ export interface FileRoutesById {
   '/delivery-partners': typeof DeliveryPartnersRoute
   '/landing': typeof LandingRoute
   '/admin/locations': typeof AdminLocationsRoute
+  '/admin/settings': typeof AdminSettingsRoute
   '/admin/staff': typeof AdminStaffRoute
   '/admin/users': typeof AdminUsersRoute
   '/admin/': typeof AdminIndexRoute
@@ -143,6 +152,7 @@ export interface FileRouteTypes {
     | '/delivery-partners'
     | '/landing'
     | '/admin/locations'
+    | '/admin/settings'
     | '/admin/staff'
     | '/admin/users'
     | '/admin/'
@@ -156,6 +166,7 @@ export interface FileRouteTypes {
     | '/delivery-partners'
     | '/landing'
     | '/admin/locations'
+    | '/admin/settings'
     | '/admin/staff'
     | '/admin/users'
     | '/admin'
@@ -171,6 +182,7 @@ export interface FileRouteTypes {
     | '/delivery-partners'
     | '/landing'
     | '/admin/locations'
+    | '/admin/settings'
     | '/admin/staff'
     | '/admin/users'
     | '/admin/'
@@ -253,6 +265,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminStaffRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/settings': {
+      id: '/admin/settings'
+      path: '/settings'
+      fullPath: '/admin/settings'
+      preLoaderRoute: typeof AdminSettingsRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/locations': {
       id: '/admin/locations'
       path: '/locations'
@@ -302,6 +321,7 @@ const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
 
 interface AdminRouteChildren {
   AdminLocationsRoute: typeof AdminLocationsRoute
+  AdminSettingsRoute: typeof AdminSettingsRoute
   AdminStaffRoute: typeof AdminStaffRoute
   AdminUsersRoute: typeof AdminUsersRoute
   AdminIndexRoute: typeof AdminIndexRoute
@@ -309,6 +329,7 @@ interface AdminRouteChildren {
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminLocationsRoute: AdminLocationsRoute,
+  AdminSettingsRoute: AdminSettingsRoute,
   AdminStaffRoute: AdminStaffRoute,
   AdminUsersRoute: AdminUsersRoute,
   AdminIndexRoute: AdminIndexRoute,
