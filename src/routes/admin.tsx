@@ -89,7 +89,12 @@ function AdminLayout() {
     <div className="flex min-h-screen bg-muted/30">
       <aside className="hidden w-64 shrink-0 flex-col border-r bg-card md:flex">
         <div className="px-6 py-5">
-          <Link to="/landing" className="text-lg font-semibold tracking-tight">Penny-eTracker</Link>
+          <div className="flex items-center justify-between">
+            <Link to="/landing" className="text-lg font-semibold tracking-tight">Penny-eTracker</Link>
+            <Link to="/" className="flex h-8 w-8 items-center justify-center rounded-md hover:bg-accent" aria-label="Home">
+              <Home className="h-4 w-4" />
+            </Link>
+          </div>
           <p className="mt-1 text-xs text-muted-foreground">Admin Panel</p>
         </div>
         <div className="flex-1 overflow-y-auto">
